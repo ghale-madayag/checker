@@ -355,7 +355,13 @@ $title       = trim((string) ($post['title']['rendered'] ?? $winner['post_title'
 $title       = html_entity_decode($title, ENT_QUOTES, 'UTF-8');
 $description = (string) ($meta['descriptions'] ?? $winner['descriptions'] ?? '');
 // NB: the post-meta key is spelled "attachements" on the intranet.
+// jet-cct requires _attachments to be a string, so normalise null/arrays.
 $attachments = $meta['attachements'] ?? $winner['attachments'] ?? '';
+if (is_array($attachments)) {
+    $attachments = implode(',', array_map('strval', $attachments));
+} else {
+    $attachments = trim((string) $attachments);
+}
 $authorName  = (string) ($winner['author_name'] ?? '');
 $authorId    = (int) ($winner['author_id'] ?? ($post['author'] ?? 0));
 $month       = $now->format('F');
@@ -407,7 +413,7 @@ $payload = [
     '_descriptions'  => $description,
     '_employee_name' => $authorName,
     '_profile_image' => $profileImage,
-    '_attachments'   => ($attachments === null || $attachments === '') ? null : $attachments,
+    '_attachments'   => $attachments,
     'cct_status'     => 'publish',
 ];
 
