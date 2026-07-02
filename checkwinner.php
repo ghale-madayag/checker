@@ -10,7 +10,7 @@
  *   3. If the top vote count is shared by 2+ ideas -> send tie.html to the team, stop.
  *   4. Otherwise fetch the winning post's details/meta, resolve the author's
  *      profile image from custom/v1/user/{id}, POST a new scoreboard record
- *      to jet-cct, and email winner.html.
+ *      to jet-cct, set winner=true on the winning post, and email winner.html.
  *
  * Usage:
  *   CLI  : php checkwinner.php [--force] [--dry-run]
@@ -427,7 +427,21 @@ if ($dryRun) {
     logline("Scoreboard updated for $month week $week (HTTP $code).");
 }
 
-/* ----------------------------------------- step 8: winner email to team */
+/* ---------------------------- step 8: mark the post as this week's winner */
+
+if ($dryRun) {
+    logline("[dry-run] Would set winner=true on post #{$winner['ID']}.");
+} else {
+    list($code, $resp, $raw) = http_request(EP_IDEA_POST . (int) $winner['ID'], 'POST', ['meta' => ['winner' => 'true']], true);
+    if ($code >= 200 && $code < 300) {
+        logline("Post #{$winner['ID']} marked as winner (meta winner=true).");
+    } else {
+        // The scoreboard is already updated, so warn but still send the announcement.
+        logline("Warning: could not set winner=true on post #{$winner['ID']} (HTTP $code): $raw");
+    }
+}
+
+/* ----------------------------------------- step 9: winner email to team */
 
 $html = load_template('winner.html');
 // Optional placeholders - winner.html is currently static, but these work if added.
