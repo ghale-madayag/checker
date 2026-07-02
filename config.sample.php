@@ -27,7 +27,7 @@ define('MAIL_TO',             'everyone@depthlogistics.com');
 define('MAIL_TO_TIE',         'everyone@depthlogistics.com');
 define('MAIL_FROM',           'backup@depthlogistics.com');
 define('MAIL_FROM_NAME',      'Depth Intranet');
-define('MAIL_SUBJECT_WINNER', 'Weekly 200: This Week\'s Winner!');
+define('MAIL_SUBJECT_WINNER', '📢 Weekly $200 Winner');
 define('MAIL_SUBJECT_TIE',    'Weekly 200: Voting Tie - Exec Vote Required');
 
 /* ---------- SMTP (Google Workspace) ---------- */
