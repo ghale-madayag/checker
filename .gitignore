@@ -1,0 +1,6 @@
+# Live credentials - copy config.sample.php to config.php and fill in
+config.php
+
+# Runtime artifacts
+logs/
+checkwinner.lock
