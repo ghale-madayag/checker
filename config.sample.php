@@ -21,6 +21,7 @@ define('EP_COMBINED_RESULTS', WP_BASE_URL . '/wp-json/my/combine-result-weekl/')
 define('EP_IDEA_POST',        WP_BASE_URL . '/wp-json/wp/v2/weekly-idea/');            // + {post_id}
 define('EP_SCOREBOARD',       WP_BASE_URL . '/wp-json/jet-cct/_weekly_idea_sboard');
 define('EP_USER_INFO',        WP_BASE_URL . '/wp-json/custom/v1/user/%d');             // + {user_id}
+define('EP_CLEAR_CACHE',      'https://scoreboard.depthintranet.com/wp-json/custom/v1/clear-cache');  // POST
 
 /* ---------- Email ---------- */
 define('MAIL_TO',             'everyone@depthlogistics.com');

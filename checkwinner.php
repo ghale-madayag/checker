@@ -10,7 +10,8 @@
  *   3. If the top vote count is shared by 2+ ideas -> send tie.html to the team, stop.
  *   4. Otherwise fetch the winning post's details/meta, resolve the author's
  *      profile image from custom/v1/user/{id}, POST a new scoreboard record
- *      to jet-cct, set winner=true on the winning post, and email winner.html.
+ *      to jet-cct, set winner=true on the winning post, email winner.html,
+ *      and clear the scoreboard cache (WP Rocket).
  *
  * Usage:
  *   CLI  : php checkwinner.php [--force] [--dry-run]
@@ -22,6 +23,11 @@
 
 define('CHECKWINNER', true);
 require __DIR__ . '/config.php';
+
+// Fallback for config.php files created before this constant existed.
+if (!defined('EP_CLEAR_CACHE')) {
+    define('EP_CLEAR_CACHE', 'https://scoreboard.depthintranet.com/wp-json/custom/v1/clear-cache');
+}
 
 date_default_timezone_set(APP_TIMEZONE);
 
@@ -462,6 +468,20 @@ if ($dryRun) {
     logline('Winner email sent to ' . MAIL_TO);
 } else {
     fail('Scoreboard was updated but the winner email could not be sent (mail() returned false).');
+}
+
+/* -------------------------------------- step 10: clear scoreboard cache */
+
+if ($dryRun) {
+    logline('[dry-run] Would clear the scoreboard cache.');
+} else {
+    list($code, $resp, $raw) = http_request(EP_CLEAR_CACHE, 'POST');
+    if ($code === 200 && !empty($resp['success'])) {
+        logline('Scoreboard cache cleared: ' . ($resp['message'] ?? 'ok'));
+    } else {
+        // Everything important already succeeded - just flag it.
+        logline("Warning: cache clear failed (HTTP $code): $raw");
+    }
 }
 
 logline('--- Run finished successfully ---');

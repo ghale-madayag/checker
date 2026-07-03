@@ -10,7 +10,10 @@ Automation that runs every **Friday 11:00 AM Australia/Brisbane**:
    - resolves the author's profile image from `wp-json/custom/v1/user/{user_id}`,
    - POSTs a record to `wp-json/jet-cct/_weekly_idea_sboard`
      (`_week`, `_month`, `_subject`, `_descriptions`, `_employee_name`, `_profile_image`, `_attachments`),
-   - emails `winner.html` to `everyone@depthlogistics.com`.
+   - emails `winner.html` to `everyone@depthlogistics.com`,
+   - clears the WP Rocket cache via
+     `https://scoreboard.depthintranet.com/wp-json/custom/v1/clear-cache` so the
+     scoreboard page shows the new winner immediately.
 
 A duplicate guard checks the scoreboard first, so the same month/week/title is never posted twice even if the cron fires more than once.
 
