@@ -52,10 +52,10 @@ function fail($msg)
 /**
  * @return array [int $httpCode, mixed $json, string $raw]
  */
-function http_request($url, $method = 'GET', $jsonBody = null, $withAuth = false)
+function http_request($url, $method = 'GET', $jsonBody = null, $withAuth = false, $extraHeaders = [])
 {
     $ch = curl_init($url);
-    $headers = ['Accept: application/json'];
+    $headers = array_merge(['Accept: application/json'], $extraHeaders);
 
     if ($withAuth) {
         $headers[] = 'Authorization: Basic ' . base64_encode(WP_API_USER . ':' . WP_APP_PASSWORD);
@@ -475,7 +475,10 @@ if ($dryRun) {
 if ($dryRun) {
     logline('[dry-run] Would clear the scoreboard cache.');
 } else {
-    list($code, $resp, $raw) = http_request(EP_CLEAR_CACHE, 'POST');
+    // Shared secret expected by the endpoint's permission_callback,
+    // derived from the WP app password so it is never stored separately.
+    $cacheKey = substr(sha1('cache-clear:' . WP_APP_PASSWORD), 0, 20);
+    list($code, $resp, $raw) = http_request(EP_CLEAR_CACHE, 'POST', null, false, ['X-Cache-Key: ' . $cacheKey]);
     if ($code === 200 && !empty($resp['success'])) {
         logline('Scoreboard cache cleared: ' . ($resp['message'] ?? 'ok'));
     } else {
