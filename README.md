@@ -22,6 +22,9 @@ A duplicate guard checks the scoreboard first, so the same month/week/title is n
 | File | Purpose |
 |---|---|
 | `checkwinner.php` | Main script (cron entry point) |
+| `remind.php` | Vote reminder (second cron entry point) |
+| `mailer.php` | SMTP helpers shared by both scripts |
+| `reminder.html` | Reminder email (`{{IDEA_ROWS}}` is filled in with this week's ideas) |
 | `config.php` | Credentials & settings – gitignored; copy `config.sample.php` and fill in |
 | `config.sample.php` | Template for `config.php` (no real credentials) |
 | `winner.html` | Winner announcement email (sent as-is) |
@@ -64,11 +67,43 @@ Alternatively an HTTP cron works too:
 0 * * * 5  curl -fsS "https://checker.depthintranet.com/checkwinner.php?key=YOUR_CRON_SECRET" > /dev/null
 ```
 
+## Vote reminders
+
+`remind.php` emails the exec group while the week's voting is still short of
+`REMIND_MIN_VOTES` (default 3), so a week does not reach the Friday cutoff with
+too few votes to call a winner. It stops on its own once the threshold is met,
+and never runs past `RUN_HOUR` - the moment `checkwinner.php` takes over.
+
+The reminder window is Friday `REMIND_START_HOUR:REMIND_START_MIN` (default
+10:30) until `RUN_HOUR:00` (11:00) Brisbane. Like the main script, the guard is
+enforced in PHP, so the cron can fire all day and only the window does work:
+
+```
+*/10 * * * 5  /usr/local/bin/php -q /home/depthint/repositories/checker/remind.php
+```
+
+Outside the window the script exits before making any HTTP call, so the extra
+firings cost nothing.
+
+Defaults live in `remind.php` and only need to be in `config.php` to override:
+
+| Constant | Default | Purpose |
+|---|---|---|
+| `REMIND_TO` | `executives@depthlogistics.com` | Who gets reminded |
+| `REMIND_MIN_VOTES` | `3` | Stop reminding once total votes reach this |
+| `REMIND_START_HOUR` / `REMIND_START_MIN` | `10` / `30` | When reminders start |
+| `REMIND_ENABLED` | `true` | Set `false` to switch reminders off |
+
+Submitter names are deliberately left out of the reminder email so voting stays
+blind - only idea titles and vote counts are shown.
+
 ## Testing
 
 ```
 php checkwinner.php --force --dry-run   # bypass schedule guard, no POST / no emails
 php checkwinner.php --force             # full run right now
+php remind.php --force --dry-run        # bypass reminder window, no email
+php remind.php --force                  # send a reminder right now
 ```
 
 Over HTTP: `https://checker.depthintranet.com/checkwinner.php?key=SECRET&force=1&dry=1`

@@ -8,3 +8,5 @@ checkwinner.lock
 # Local scratch / generated previews
 ideas.json
 preview-reminder*.html
+
+remind.lock
