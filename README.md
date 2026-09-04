@@ -71,8 +71,15 @@ Alternatively an HTTP cron works too:
 
 `remind.php` emails the exec group while the week's voting is still short of
 `REMIND_MIN_VOTES` (default 3), so a week does not reach the Friday cutoff with
-too few votes to call a winner. It stops on its own once the threshold is met,
-and never runs past `RUN_HOUR` - the moment `checkwinner.php` takes over.
+too few votes to call a winner. It never runs past `RUN_HOUR` - the moment
+`checkwinner.php` takes over - and stops on its own when either:
+
+- the total vote count reaches `REMIND_MIN_VOTES`, or
+- only one idea was submitted and it has at least one vote. A lone idea is
+  `checkwinner.php`'s winner whatever its count, so there is nothing to chase.
+
+The email body reflects the live count ("no votes have been cast yet" / "only
+2 votes have been cast so far"), as does the subject line.
 
 The reminder window is Friday `REMIND_START_HOUR:REMIND_START_MIN` (default
 10:30) until `RUN_HOUR:00` (11:00) Brisbane. Like the main script, the guard is

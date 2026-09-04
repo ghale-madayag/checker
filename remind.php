@@ -152,6 +152,13 @@ if ($total >= REMIND_MIN_VOTES) {
     exit(0);
 }
 
+// A lone idea with any votes is checkwinner.php's winner regardless of the
+// count - nothing left to remind anyone about.
+if (count($ideas) === 1 && $total >= 1) {
+    logline("Reminder: only one idea this week and it has $total vote(s) - it wins automatically. Nothing sent.");
+    exit(0);
+}
+
 /* ------------------------------------------------------------ send email */
 
 $html = @file_get_contents(__DIR__ . '/reminder.html');
@@ -159,7 +166,18 @@ if ($html === false) {
     logline('Reminder: reminder.html not found.');
     exit(1);
 }
-$html = str_replace('{{IDEA_ROWS}}', $rows, $html);
+$summary = $total === 0
+    ? 'no votes have been cast yet'
+    : 'only ' . ($total === 1 ? 'one vote has' : "$total votes have") . ' been cast so far';
+$consequence = $total === 0
+    ? 'if no idea has received a vote by then, no winner can be announced for this week'
+    : 'we need more votes in to land on a clear winner';
+
+$html = str_replace(
+    ['{{IDEA_ROWS}}', '{{VOTE_SUMMARY}}', '{{CONSEQUENCE}}'],
+    [$rows, $summary, $consequence],
+    $html
+);
 
 $subject = 'Weekly 200: Voting Closes ' . RUN_DAY . ' ' . RUN_HOUR . 'am - '
     . ($total === 0 ? 'No Votes Yet' : "Only $total Vote" . ($total === 1 ? '' : 's') . ' So Far');
