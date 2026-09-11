@@ -15,6 +15,14 @@ Automation that runs every **Friday 11:00 AM Australia/Brisbane**:
      `https://scoreboard.depthintranet.com/wp-json/custom/v1/clear-cache` so the
      scoreboard page shows the new winner immediately.
 
+Every run, before the schedule guard, also checks the newest scoreboard
+entries (`HEAL_RECENT`, default 10) for a missing profile photo. It traces each
+one back to its idea post to find the author, looks the photo up in BuddyPress,
+and fills it in through the scoreboard's update route. A photo that couldn't be
+found at 11:00 is retried on every later hourly Friday run. This needs the
+update REST endpoint enabled on the Weekly Idea Scoreboard content type in
+JetEngine (enabled September 2026, `edit_posts` access).
+
 A duplicate guard checks the scoreboard first, so the same month/week/title is never posted twice even if the cron fires more than once.
 
 ## Files

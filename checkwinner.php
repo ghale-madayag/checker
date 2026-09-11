@@ -34,6 +34,10 @@ if (!defined('EP_CLEAR_CACHE')) {
 if (!defined('EP_USER_AVATAR')) {
     define('EP_USER_AVATAR', WP_BASE_URL . '/wp-json/buddypress/v1/members/%d/avatar');
 }
+// How many of the newest scoreboard entries to check for a missing photo.
+if (!defined('HEAL_RECENT')) {
+    define('HEAL_RECENT', 10);
+}
 // Who hears about problems that should not stop the announcement.
 if (!defined('MAIL_TO_ALERT')) {
     define('MAIL_TO_ALERT', MAIL_FROM);
@@ -62,7 +66,7 @@ function fail($msg)
 /**
  * @return array [int $httpCode, mixed $json, string $raw]
  */
-function http_request($url, $method = 'GET', $jsonBody = null, $withAuth = false, $extraHeaders = [])
+function http_request($url, $method = 'GET', $jsonBody = null, $withAuth = false, $extraHeaders = [], $fatal = true)
 {
     $ch = curl_init($url);
     $headers = array_merge(['Accept: application/json'], $extraHeaders);
@@ -94,6 +98,10 @@ function http_request($url, $method = 'GET', $jsonBody = null, $withAuth = false
     curl_close($ch);
 
     if ($raw === false) {
+        if (!$fatal) {
+            logline("Warning: cURL error calling $url: $err");
+            return [0, null, ''];
+        }
         fail("cURL error calling $url: $err");
     }
     return [$code, json_decode($raw, true), $raw];
@@ -244,6 +252,91 @@ function send_html_email($to, $subject, $html)
     return mail($to, $encodedSubject, $html, $headers, '-f' . MAIL_FROM);
 }
 
+/**
+ * Resolve a user's profile photo URL from BuddyPress.
+ * Returns [string $url, string $error]; exactly one of them is non-empty.
+ */
+function fetch_avatar($userId, $fatal = true)
+{
+    list($code, $avatars, $raw) = http_request(sprintf(EP_USER_AVATAR, $userId), 'GET', null, false, [], $fatal);
+    $avatar = (is_array($avatars) && isset($avatars[0]['full'])) ? (string) $avatars[0]['full'] : '';
+    if ($code !== 200) {
+        return ['', "avatar lookup for user $userId returned HTTP $code: " . substr((string) $raw, 0, 200)];
+    }
+    if ($avatar === '') {
+        return ['', "avatar lookup for user $userId returned no image"];
+    }
+    // Gravatar fallbacks come back protocol-relative and HTML-encoded.
+    $avatar = html_entity_decode($avatar, ENT_QUOTES, 'UTF-8');
+    return [(strpos($avatar, '//') === 0) ? 'https:' . $avatar : $avatar, ''];
+}
+
+/**
+ * Fill in the profile photo on recent scoreboard entries that are missing one.
+ *
+ * Entries store the winner's name but not their user ID, so each entry is
+ * matched back to its weekly-idea post by title and week to find the author.
+ * Every request is non-fatal: this must never stop the winner run.
+ */
+function heal_missing_photos($dryRun)
+{
+    list($code, $records) = http_request(EP_SCOREBOARD, 'GET', null, true, [], false);
+    if ($code !== 200 || !is_array($records)) {
+        logline("Photo check: could not read the scoreboard (HTTP $code). Skipping.");
+        return;
+    }
+
+    usort($records, function ($a, $b) { return (int) ($b['_ID'] ?? 0) - (int) ($a['_ID'] ?? 0); });
+    $missing = array_values(array_filter(array_slice($records, 0, HEAL_RECENT), function ($r) {
+        return is_array($r) && trim((string) ($r['_profile_image'] ?? '')) === '';
+    }));
+
+    foreach ($missing as $rec) {
+        $id      = (int) $rec['_ID'];
+        $subject = html_entity_decode((string) ($rec['_subject'] ?? ''), ENT_QUOTES, 'UTF-8');
+        $week    = (string) ($rec['_week'] ?? '');
+        $label   = '#' . $id . ' "' . $subject . '" (' . ($rec['_month'] ?? '?') . ' week ' . $week . ')';
+
+        $url = rtrim(EP_IDEA_POST, '/') . '?' . http_build_query([
+            'search'   => $subject,
+            'per_page' => 20,
+            '_fields'  => 'id,title,author,meta.week',
+        ]);
+        list($code, $posts) = http_request($url, 'GET', null, true, [], false);
+
+        $authorId = 0;
+        foreach ((is_array($posts) ? $posts : []) as $post) {
+            $title    = html_entity_decode((string) ($post['title']['rendered'] ?? ''), ENT_QUOTES, 'UTF-8');
+            $postWeek = (string) ($post['meta']['week'] ?? '');
+            if ($title === $subject && ($week === '' || $postWeek === '' || $postWeek === $week)) {
+                $authorId = (int) ($post['author'] ?? 0);
+                break;
+            }
+        }
+        if ($authorId <= 0) {
+            logline("Photo check: $label has no photo and its idea post could not be found (HTTP $code).");
+            continue;
+        }
+
+        list($photo, $error) = fetch_avatar($authorId, false);
+        if ($photo === '') {
+            logline("Photo check: $label still has no photo - $error");
+            continue;
+        }
+
+        if ($dryRun) {
+            logline("[dry-run] Photo check: would set $label photo to $photo");
+            continue;
+        }
+        list($code, $resp, $raw) = http_request(EP_SCOREBOARD . '/' . $id, 'POST', ['_profile_image' => $photo], true, [], false);
+        if ($code === 200 && !empty($resp['success'])) {
+            logline("Photo check: filled in $label photo: $photo");
+        } else {
+            logline("Photo check: could not update $label (HTTP $code): " . substr((string) $raw, 0, 200));
+        }
+    }
+}
+
 function load_template($file)
 {
     $path = __DIR__ . '/' . $file;
@@ -281,6 +374,12 @@ if (!$lock || !flock($lock, LOCK_EX | LOCK_NB)) {
 }
 
 logline('--- Run started (force=' . ($force ? 'yes' : 'no') . ', dry-run=' . ($dryRun ? 'yes' : 'no') . ') ---');
+
+/* --------------------------------- heal: backfill missing winner photos */
+
+// Runs on every invocation, before the schedule guard, so a photo that
+// could not be found at 11:00 is retried on each later hourly Friday run.
+heal_missing_photos($dryRun);
 
 /* ------------------------------------------------------- schedule guard */
 
@@ -393,21 +492,11 @@ $avatarError  = '';
 if ($authorId <= 0) {
     $avatarError = 'the winning post has no author ID';
 } else {
-    list($code, $avatars, $raw) = http_request(sprintf(EP_USER_AVATAR, $authorId));
-    $avatar = (is_array($avatars) && isset($avatars[0]['full'])) ? (string) $avatars[0]['full'] : '';
-    if ($code !== 200) {
-        $avatarError = "avatar lookup for user $authorId returned HTTP $code: " . substr((string) $raw, 0, 200);
-    } elseif ($avatar === '') {
-        $avatarError = "avatar lookup for user $authorId returned no image";
-    } else {
-        // Gravatar fallbacks come back protocol-relative and HTML-encoded.
-        $avatar       = html_entity_decode($avatar, ENT_QUOTES, 'UTF-8');
-        $profileImage = (strpos($avatar, '//') === 0) ? 'https:' . $avatar : $avatar;
-    }
+    list($profileImage, $avatarError) = fetch_avatar($authorId, false);
 }
 if ($avatarError !== '') {
     // Carry on: a missing photo should not block the announcement. An alert
-    // goes out at the end of the run so someone can backfill the record.
+    // goes out at the end of the run, and heal_missing_photos() retries later.
     logline('WARNING: no profile image - ' . $avatarError);
 } else {
     logline('Profile image: ' . $profileImage);
@@ -520,7 +609,8 @@ if ($avatarError !== '') {
         . '<li>Scoreboard entry: ' . htmlspecialchars("$month, week $week", ENT_QUOTES, 'UTF-8') . '</li>'
         . '<li>Reason: ' . htmlspecialchars($avatarError, ENT_QUOTES, 'UTF-8') . '</li>'
         . '</ul>'
-        . '<p>Fix it by setting the profile image on that entry in WP Admin, then clear the scoreboard cache.</p>';
+        . '<p>The checker retries every hour on Fridays and fills the photo in once it can be found. '
+        . 'If it is still missing after that, check the BuddyPress avatar route for this user.</p>';
     if ($dryRun) {
         logline('[dry-run] Would send missing-photo alert to ' . MAIL_TO_ALERT);
     } elseif (send_html_email(MAIL_TO_ALERT, 'Weekly 200: winner posted without a profile image', $alert)) {
