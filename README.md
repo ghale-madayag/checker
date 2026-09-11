@@ -7,7 +7,7 @@ Automation that runs every **Friday 11:00 AM Australia/Brisbane**:
 3. If two or more ideas tie for the top vote count → emails `tie.html` (Exec vote required) and **does not** touch the scoreboard.
 4. Otherwise, for the single winner:
    - fetches post details/meta from `wp-json/wp/v2/weekly-idea/{post_id}`,
-   - resolves the author's profile image from `wp-json/custom/v1/user/{user_id}`,
+   - resolves the author's profile image from BuddyPress (`wp-json/buddypress/v1/members/{user_id}/avatar`); if that fails the winner is still posted and an alert goes to `MAIL_TO_ALERT`,
    - POSTs a record to `wp-json/jet-cct/_weekly_idea_sboard`
      (`_week`, `_month`, `_subject`, `_descriptions`, `_employee_name`, `_profile_image`, `_attachments`),
    - emails `winner.html` to `everyone@depthlogistics.com`,

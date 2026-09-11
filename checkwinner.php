@@ -28,6 +28,16 @@ require __DIR__ . '/config.php';
 if (!defined('EP_CLEAR_CACHE')) {
     define('EP_CLEAR_CACHE', 'https://scoreboard.depthintranet.com/wp-json/custom/v1/clear-cache');
 }
+// BuddyPress's built-in avatar route. It replaces EP_USER_INFO
+// (custom/v1/user), which disappeared from the intranet in September 2026
+// and left two winners on the scoreboard without a photo.
+if (!defined('EP_USER_AVATAR')) {
+    define('EP_USER_AVATAR', WP_BASE_URL . '/wp-json/buddypress/v1/members/%d/avatar');
+}
+// Who hears about problems that should not stop the announcement.
+if (!defined('MAIL_TO_ALERT')) {
+    define('MAIL_TO_ALERT', MAIL_FROM);
+}
 
 date_default_timezone_set(APP_TIMEZONE);
 
@@ -379,17 +389,29 @@ if ($week === '' || $title === '') {
 /* --------------------------------------- step 5: author's profile image */
 
 $profileImage = '';
-if ($authorId > 0) {
-    list($code, $user) = http_request(sprintf(EP_USER_INFO, $authorId));
-    if ($code === 200 && is_array($user)) {
-        $avatar = $user['avatar'] ?? '';
-        if (is_string($avatar) && $avatar !== '') {
-            $avatar       = html_entity_decode($avatar, ENT_QUOTES, 'UTF-8');
-            $profileImage = (strpos($avatar, '//') === 0) ? 'https:' . $avatar : $avatar;
-        }
+$avatarError  = '';
+if ($authorId <= 0) {
+    $avatarError = 'the winning post has no author ID';
+} else {
+    list($code, $avatars, $raw) = http_request(sprintf(EP_USER_AVATAR, $authorId));
+    $avatar = (is_array($avatars) && isset($avatars[0]['full'])) ? (string) $avatars[0]['full'] : '';
+    if ($code !== 200) {
+        $avatarError = "avatar lookup for user $authorId returned HTTP $code: " . substr((string) $raw, 0, 200);
+    } elseif ($avatar === '') {
+        $avatarError = "avatar lookup for user $authorId returned no image";
+    } else {
+        // Gravatar fallbacks come back protocol-relative and HTML-encoded.
+        $avatar       = html_entity_decode($avatar, ENT_QUOTES, 'UTF-8');
+        $profileImage = (strpos($avatar, '//') === 0) ? 'https:' . $avatar : $avatar;
     }
 }
-logline("Profile image: " . ($profileImage !== '' ? $profileImage : '(none found)'));
+if ($avatarError !== '') {
+    // Carry on: a missing photo should not block the announcement. An alert
+    // goes out at the end of the run so someone can backfill the record.
+    logline('WARNING: no profile image - ' . $avatarError);
+} else {
+    logline('Profile image: ' . $profileImage);
+}
 
 /* -------------------------------- step 6: duplicate guard on scoreboard */
 
@@ -484,6 +506,27 @@ if ($dryRun) {
     } else {
         // Everything important already succeeded - just flag it.
         logline("Warning: cache clear failed (HTTP $code): $raw");
+    }
+}
+
+/* ------------------------------ step 11: alert if the photo was missing */
+
+if ($avatarError !== '') {
+    $alert = '<p>The Weekly $200 winner for this week was posted to the scoreboard and announced, '
+        . 'but <strong>without a profile image</strong>, so the scoreboard shows a placeholder.</p>'
+        . '<ul>'
+        . '<li>Winner: ' . htmlspecialchars($authorName, ENT_QUOTES, 'UTF-8') . " (user ID $authorId)</li>"
+        . '<li>Idea: ' . htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . '</li>'
+        . '<li>Scoreboard entry: ' . htmlspecialchars("$month, week $week", ENT_QUOTES, 'UTF-8') . '</li>'
+        . '<li>Reason: ' . htmlspecialchars($avatarError, ENT_QUOTES, 'UTF-8') . '</li>'
+        . '</ul>'
+        . '<p>Fix it by setting the profile image on that entry in WP Admin, then clear the scoreboard cache.</p>';
+    if ($dryRun) {
+        logline('[dry-run] Would send missing-photo alert to ' . MAIL_TO_ALERT);
+    } elseif (send_html_email(MAIL_TO_ALERT, 'Weekly 200: winner posted without a profile image', $alert)) {
+        logline('Missing-photo alert sent to ' . MAIL_TO_ALERT);
+    } else {
+        logline('WARNING: missing-photo alert to ' . MAIL_TO_ALERT . ' could not be sent.');
     }
 }
 

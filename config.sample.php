@@ -20,7 +20,7 @@ define('WP_APP_PASSWORD', 'xxxx xxxx xxxx xxxx xxxx xxxx');
 define('EP_COMBINED_RESULTS', WP_BASE_URL . '/wp-json/my/combine-result-weekl/');
 define('EP_IDEA_POST',        WP_BASE_URL . '/wp-json/wp/v2/weekly-idea/');            // + {post_id}
 define('EP_SCOREBOARD',       WP_BASE_URL . '/wp-json/jet-cct/_weekly_idea_sboard');
-define('EP_USER_INFO',        WP_BASE_URL . '/wp-json/custom/v1/user/%d');             // + {user_id}
+define('EP_USER_AVATAR',      WP_BASE_URL . '/wp-json/buddypress/v1/members/%d/avatar'); // + {user_id}
 define('EP_CLEAR_CACHE',      'https://scoreboard.depthintranet.com/wp-json/custom/v1/clear-cache');  // POST
 
 /* ---------- Email ---------- */
@@ -30,6 +30,8 @@ define('MAIL_FROM',           'backup@depthlogistics.com');
 define('MAIL_FROM_NAME',      'Depth Intranet');
 define('MAIL_SUBJECT_WINNER', '📢 Weekly $200 Winner');
 define('MAIL_SUBJECT_TIE',    'Weekly 200: Voting Tie - Exec Vote Required');
+// Gets a heads-up when a winner is posted without a profile image. Defaults to MAIL_FROM.
+define('MAIL_TO_ALERT',       'backup@depthlogistics.com');
 
 /* ---------- SMTP (Google Workspace) ---------- */
 // When true, emails are sent through SMTP_HOST with the app password below.
