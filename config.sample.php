@@ -51,6 +51,9 @@ define('APP_TIMEZONE', 'Australia/Brisbane');
 define('ENFORCE_SCHEDULE', true);
 define('RUN_DAY', 'Friday');
 define('RUN_HOUR', 11);
+// The window closes at this hour (exclusive), so the checker keeps looking
+// for a broken tie through the afternoon. The tie email only goes out once.
+define('RUN_HOUR_END', 17);
 
 /* ---------- Security ---------- */
 // Required as ?key=... when the script is called over HTTP (browser / http cron).

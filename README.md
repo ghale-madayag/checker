@@ -55,9 +55,12 @@ A duplicate guard checks the scoreboard first, so the same month/week/title is n
 
 ## Cron on VentraIP (cPanel → Cron Jobs)
 
-The script has a built-in guard: it only does its work when it is **Friday
-between 11:00 and 11:59 Brisbane time**, regardless of the server's timezone.
-So the safest schedule is *hourly on Fridays* – the guard picks the right hour:
+The script has a built-in guard: it only does its work on **Friday between
+11:00 and 16:59 Brisbane time** (`RUN_HOUR` to `RUN_HOUR_END`), regardless of
+the server's timezone. The window runs past 11:00 so a tie broken during the
+afternoon is still announced the same day; the tie email itself only goes out
+in the first hour. So the safest schedule is *hourly on Fridays* - the guard
+picks the right hours:
 
 ```
 0 * * * 5  /usr/local/bin/php -q /home/YOUR_CPANEL_USER/public_html/checker/checkwinner.php

@@ -34,6 +34,12 @@ if (!defined('EP_CLEAR_CACHE')) {
 if (!defined('EP_USER_AVATAR')) {
     define('EP_USER_AVATAR', WP_BASE_URL . '/wp-json/buddypress/v1/members/%d/avatar');
 }
+// The run window closes at this hour (exclusive) on RUN_DAY. The checker
+// keeps looking after RUN_HOUR so a tie broken during the afternoon is
+// still announced the same day instead of waiting a week.
+if (!defined('RUN_HOUR_END')) {
+    define('RUN_HOUR_END', 17);
+}
 // The tie email asks for an exec decision, so it goes to the exec group
 // rather than the all-staff list. Deployed config.php files still set
 // MAIL_TO_TIE to everyone@, so the recipient is resolved here instead and
@@ -416,14 +422,21 @@ heal_missing_photos($dryRun);
 
 /* ------------------------------------------------------- schedule guard */
 
-$now = new DateTime('now', new DateTimeZone(APP_TIMEZONE));
+$now  = new DateTime('now', new DateTimeZone(APP_TIMEZONE));
+$hour = (int) $now->format('G');
+
 if (ENFORCE_SCHEDULE && !$force) {
-    if ($now->format('l') !== RUN_DAY || (int) $now->format('G') !== RUN_HOUR) {
+    if ($now->format('l') !== RUN_DAY || $hour < RUN_HOUR || $hour >= RUN_HOUR_END) {
         logline('Schedule guard: now is ' . $now->format('l H:i') . ' ' . APP_TIMEZONE
-            . ', expected ' . RUN_DAY . ' ' . RUN_HOUR . ':00-' . RUN_HOUR . ':59. Nothing to do.');
+            . ', expected ' . RUN_DAY . ' ' . RUN_HOUR . ':00-' . (RUN_HOUR_END - 1) . ':59. Nothing to do.');
         exit(0);
     }
 }
+
+// The tie notice goes out once, in the first hour of the window. Later runs
+// exist to catch a tie the exec team has since broken, so they must not mail
+// the same notice again. --force always counts as the first hour, for testing.
+$firstHour = $force || $hour === RUN_HOUR;
 
 /* ------------------------------------------------ step 1: voting results */
 
@@ -464,6 +477,11 @@ $topIdeas = array_values(array_filter($votedIdeas, function ($i) use ($maxVotes)
 
 if (count($topIdeas) > 1) {
     logline('Tie detected: ' . count($topIdeas) . " ideas share the top vote count of $maxVotes.");
+
+    if (!$firstHour) {
+        logline('Still tied; the notice went out at ' . RUN_HOUR . ':00. Waiting for the exec vote.');
+        exit(0);
+    }
 
     $rows = '';
     foreach ($topIdeas as $n => $idea) {
