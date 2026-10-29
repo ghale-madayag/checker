@@ -4,7 +4,10 @@ Automation that runs every **Friday 11:00 AM Australia/Brisbane**:
 
 1. Fetches voting results from `https://depthintranet.com/wp-json/my/combine-result-weekl/`.
 2. **Stops** (no update, no email) if there are no ideas, or every idea has 0 votes.
-3. If two or more ideas tie for the top vote count → emails `tie.html` (Exec vote required) and **does not** touch the scoreboard.
+3. If two or more ideas tie for the top vote count → emails `tie.html` to the exec group (`MAIL_TO_TIE_EXEC`, default
+   `executives@depthlogistics.com`) and **does not** touch the scoreboard. Each
+   tied idea is listed with its description so the vote can be cast from the
+   email; images in a description are stripped, never attached.
 4. Otherwise, for the single winner:
    - fetches post details/meta from `wp-json/wp/v2/weekly-idea/{post_id}`,
    - resolves the author's profile image from BuddyPress (`wp-json/buddypress/v1/members/{user_id}/avatar`); if that fails the winner is still posted and an alert goes to `MAIL_TO_ALERT`,

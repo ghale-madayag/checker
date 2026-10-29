@@ -25,7 +25,8 @@ define('EP_CLEAR_CACHE',      'https://scoreboard.depthintranet.com/wp-json/cust
 
 /* ---------- Email ---------- */
 define('MAIL_TO',             'everyone@depthlogistics.com');
-define('MAIL_TO_TIE',         'everyone@depthlogistics.com');
+// A tie needs an exec decision, so it goes to the exec group, not all staff.
+define('MAIL_TO_TIE_EXEC',    'executives@depthlogistics.com');
 define('MAIL_FROM',           'backup@depthlogistics.com');
 define('MAIL_FROM_NAME',      'Depth Intranet');
 define('MAIL_SUBJECT_WINNER', '📢 Weekly $200 Winner');

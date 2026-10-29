@@ -34,6 +34,13 @@ if (!defined('EP_CLEAR_CACHE')) {
 if (!defined('EP_USER_AVATAR')) {
     define('EP_USER_AVATAR', WP_BASE_URL . '/wp-json/buddypress/v1/members/%d/avatar');
 }
+// The tie email asks for an exec decision, so it goes to the exec group
+// rather than the all-staff list. Deployed config.php files still set
+// MAIL_TO_TIE to everyone@, so the recipient is resolved here instead and
+// those files do not have to be edited.
+if (!defined('MAIL_TO_TIE_EXEC')) {
+    define('MAIL_TO_TIE_EXEC', 'executives@depthlogistics.com');
+}
 // How many of the newest scoreboard entries to check for a missing photo.
 if (!defined('HEAL_RECENT')) {
     define('HEAL_RECENT', 10);
@@ -481,9 +488,9 @@ if (count($topIdeas) > 1) {
     $html = str_replace('{{TIE_ROWS}}', $rows, load_template('tie.html'));
 
     if ($dryRun) {
-        logline('[dry-run] Would send tie email to ' . MAIL_TO_TIE);
-    } elseif (send_html_email(MAIL_TO_TIE, MAIL_SUBJECT_TIE, $html)) {
-        logline('Tie email sent to ' . MAIL_TO_TIE);
+        logline('[dry-run] Would send tie email to ' . MAIL_TO_TIE_EXEC);
+    } elseif (send_html_email(MAIL_TO_TIE_EXEC, MAIL_SUBJECT_TIE, $html)) {
+        logline('Tie email sent to ' . MAIL_TO_TIE_EXEC);
     } else {
         fail('Tie email could not be sent (mail() returned false).');
     }
