@@ -337,6 +337,32 @@ function heal_missing_photos($dryRun)
     }
 }
 
+/**
+ * Turn an idea's description into safe inline email HTML.
+ *
+ * Images are dropped rather than embedded or attached: the tie email is a
+ * reading aid for the exec vote, not a copy of the submission. Any other
+ * markup is stripped too, so only the author's words survive.
+ */
+function description_html($text)
+{
+    $text = (string) $text;
+    // Drop images and anything whose content is not prose.
+    $text = preg_replace('#<(img|script|style|iframe|object|embed)\b[^>]*>.*?</\1\s*>#is', '', $text);
+    $text = preg_replace('#<(img|br|hr)\b[^>]*/?>#i', "\n", $text);
+    $text = preg_replace('#</(p|div|li|tr)\s*>#i', "\n", $text);
+    $text = strip_tags($text);
+    $text = html_entity_decode($text, ENT_QUOTES, 'UTF-8');
+    // Collapse the runs of blank lines the intranet editor leaves behind.
+    $text = preg_replace('/[ \t]+/', ' ', $text);
+    $text = preg_replace('/(\r?\n){2,}/', "\n", $text);
+    $text = trim($text);
+    if ($text === '') {
+        return '';
+    }
+    return nl2br(htmlspecialchars($text, ENT_QUOTES, 'UTF-8'), false);
+}
+
 function load_template($file)
 {
     $path = __DIR__ . '/' . $file;
@@ -434,10 +460,22 @@ if (count($topIdeas) > 1) {
 
     $rows = '';
     foreach ($topIdeas as $n => $idea) {
-        $bg    = ($n % 2 === 0) ? '#ffffff' : '#f9f9f9';
+        $bg = ($n % 2 === 0) ? '#ffffff' : '#f9f9f9';
+        // Titles arrive HTML-encoded from the API, so decode before escaping.
+        $tieTitle = htmlspecialchars(
+            html_entity_decode((string) $idea['post_title'], ENT_QUOTES, 'UTF-8'),
+            ENT_QUOTES,
+            'UTF-8'
+        );
+        $tieDesc = description_html($idea['descriptions'] ?? '');
         $rows .= '<tr style="background-color:' . $bg . '">'
-            . '<td style="padding:10px">' . htmlspecialchars($idea['post_title'], ENT_QUOTES, 'UTF-8') . '</td>'
-            . '<td style="padding:10px;text-align:center">' . (int) $idea['votes'] . '</td>'
+            . '<td style="padding:10px;vertical-align:top">'
+            . '<strong>' . $tieTitle . '</strong>'
+            . ($tieDesc !== ''
+                ? '<div style="margin-top:6px;font-size:14px;line-height:21px;color:#555555">' . $tieDesc . '</div>'
+                : '')
+            . '</td>'
+            . '<td style="padding:10px;text-align:center;vertical-align:top">' . (int) $idea['votes'] . '</td>'
             . "</tr>\n";
     }
     $html = str_replace('{{TIE_ROWS}}', $rows, load_template('tie.html'));
