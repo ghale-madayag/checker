@@ -17,8 +17,10 @@
  *   CLI  : php checkwinner.php [--force] [--dry-run]
  *   HTTP : https://checker.depthintranet.com/checkwinner.php?key=CRON_SECRET[&force=1][&dry=1]
  *
- *   --force   bypass the Friday 11am Brisbane schedule guard (for testing)
- *   --dry-run do everything except the scoreboard POST and the emails
+ *   --force       bypass the Friday 11am Brisbane schedule guard (for testing)
+ *   --dry-run     do everything except the scoreboard POST and the emails
+ *   --winner=ID   declare that idea the winner regardless of the vote counts,
+ *                 for recording an exec decision that broke a tie off-system
  */
 
 define('CHECKWINNER', true);
@@ -399,10 +401,17 @@ if (!$isCli) {
     header('Content-Type: text/html; charset=UTF-8');
     $force  = isset($_GET['force']);
     $dryRun = isset($_GET['dry']);
+    $pickId = isset($_GET['winner']) ? (int) $_GET['winner'] : 0;
 } else {
     $args   = array_slice($GLOBALS['argv'], 1);
     $force  = in_array('--force', $args, true);
     $dryRun = in_array('--dry-run', $args, true);
+    $pickId = 0;
+    foreach ($args as $a) {
+        if (strpos($a, '--winner=') === 0) {
+            $pickId = (int) substr($a, 9);
+        }
+    }
 }
 
 /* -------------------------------------------------- prevent parallel runs */
@@ -474,6 +483,25 @@ $maxVotes = max(array_map(function ($i) { return (int) $i['votes']; }, $votedIde
 $topIdeas = array_values(array_filter($votedIdeas, function ($i) use ($maxVotes) {
     return (int) $i['votes'] === $maxVotes;
 }));
+
+// A tie the exec team settled off-system: --winner=ID names the decision so the
+// rest of the run (scoreboard, winner flag, announcement, cache) is unchanged.
+if ($pickId > 0) {
+    $picked = array_values(array_filter($votedIdeas, function ($i) use ($pickId) {
+        return (int) $i['ID'] === $pickId;
+    }));
+    if (count($picked) === 0) {
+        fail("--winner=$pickId is not one of this week's ideas with at least one vote.");
+    }
+    $topIdeas = $picked;
+    logline(sprintf(
+        'Manual winner override: #%s "%s" declared the winner with %d vote(s); top vote count was %d.',
+        $picked[0]['ID'],
+        html_entity_decode((string) $picked[0]['post_title'], ENT_QUOTES, 'UTF-8'),
+        (int) $picked[0]['votes'],
+        $maxVotes
+    ));
+}
 
 if (count($topIdeas) > 1) {
     logline('Tie detected: ' . count($topIdeas) . " ideas share the top vote count of $maxVotes.");
